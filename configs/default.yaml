@@ -1,0 +1,67 @@
+# Federated Learning Configuration
+
+# General settings
+seed: 42
+device: "cuda" # or "cpu"
+num_workers: 2
+pin_memory: true
+
+# Dataset settings
+dataset:
+  name: "cifar100"
+  data_dir: "./data"
+  val_split: 0.1 # 10% of training data for validation
+  batch_size: 64
+  num_classes: 100
+
+# Model settings
+model:
+  name: "dino_vit_small_patch16"
+  pretrained: true
+  freeze_backbone: false # Set to true for linear probe
+
+# Centralized training settings
+centralized:
+  epochs: 50
+  learning_rate: 0.001
+  momentum: 0.9
+  weight_decay: 0.0001
+  scheduler: "cosine" # cosine, step, none
+  warmup_epochs: 5
+
+# Federated learning settings
+federated:
+  num_clients: 100 # K
+  participation_rate: 0.1 # C (fraction of clients per round)
+  local_steps: 4 # J (number of local training steps)
+  num_rounds: 500
+  learning_rate: 0.01
+  momentum: 0.9
+  weight_decay: 0.0001
+
+# Sharding settings
+sharding:
+  strategy: "iid" # iid, non_iid
+  nc: 10 # Number of classes per client for non-iid (1, 5, 10, 50)
+
+# Task Arithmetic / Sparse fine-tuning settings
+sparse:
+  enabled: false
+  sparsity_ratio: 0.9 # Fraction of weights to mask (keep only 10% trainable)
+  calibration_rounds: 5
+  mask_strategy: "least_sensitive" # least_sensitive, most_sensitive, lowest_magnitude, highest_magnitude, random
+  fisher_samples: 512 # Number of samples for Fisher computation
+
+# Logging settings
+logging:
+  use_wandb: false
+  wandb_project: "federated-task-arithmetic"
+  log_interval: 10
+  save_interval: 50
+  checkpoint_dir: "./checkpoints"
+  log_dir: "./logs"
+
+# Experiment settings
+experiment:
+  name: "default"
+  num_runs: 3 # Number of independent runs
