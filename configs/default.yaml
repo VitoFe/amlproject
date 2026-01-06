@@ -19,15 +19,19 @@ model:
   name: "dino_vit_small_patch16"
   pretrained: true
   freeze_backbone: false # Set to true for linear probe
+  dropout: 0.3 # Dropout rate for classifier (0.1-0.5)
+  freeze_layers: 6 # Freeze first 6 of 12 transformer blocks
 
-# Centralized training settings
+# Centralized training settings (with anti-overfitting defaults)
 centralized:
   epochs: 50
-  learning_rate: 0.001
+  learning_rate: 0.0005 # Lower LR helps prevent overfitting
   momentum: 0.9
-  weight_decay: 0.0001
+  weight_decay: 0.01 # Increased weight decay for regularization
   scheduler: "cosine" # cosine, step, none
   warmup_epochs: 5
+  label_smoothing: 0.1 # Reduces overconfident predictions
+  early_stopping_patience: 10 # Stop after 10 epochs without improvement
 
 # Federated learning settings
 federated:
@@ -38,6 +42,7 @@ federated:
   learning_rate: 0.01
   momentum: 0.9
   weight_decay: 0.0001
+  label_smoothing: 0.1
 
 # Sharding settings
 sharding:

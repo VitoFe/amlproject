@@ -7,10 +7,11 @@ This serves as the performance benchmark for federated approaches.
 
 import torch
 from torch.utils.data import DataLoader
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from .base import BaseTrainer
 from ..utils.logging import log_metrics
+from ..utils.early_stopping import EarlyStopping
 
 
 class CentralizedTrainer(BaseTrainer):
@@ -46,6 +47,7 @@ class CentralizedTrainer(BaseTrainer):
                 - weight_decay: L2 regularization
                 - scheduler: LR scheduler type
                 - warmup_epochs: Warmup epochs
+                - early_stopping_patience: Epochs to wait before stopping (0 to disable)
             device: Device for computation
             experiment_name: Name for logging
         """
@@ -61,6 +63,7 @@ class CentralizedTrainer(BaseTrainer):
         self.weight_decay = config.get('weight_decay', 1e-4)
         self.scheduler_type = config.get('scheduler', 'cosine')
         self.warmup_epochs = config.get('warmup_epochs', 5)
+        self.early_stopping_patience = config.get('early_stopping_patience', 10)
         
         # Setup optimizer and scheduler
         self.optimizer = self._create_optimizer(
@@ -75,12 +78,23 @@ class CentralizedTrainer(BaseTrainer):
             total_epochs=self.epochs,
             warmup_epochs=self.warmup_epochs
         )
+        
+        # Setup early stopping
+        self.early_stopping: Optional[EarlyStopping] = None
+        if self.early_stopping_patience > 0:
+            self.early_stopping = EarlyStopping(
+                patience=self.early_stopping_patience,
+                min_delta=0.001,
+                mode='max',  # Monitor validation accuracy
+                verbose=True
+            )
     
     def train(
         self,
         resume: bool = True,
         save_every: int = 10,
-        use_wandb: bool = False
+        use_wandb: bool = False,
+        early_stopping_patience: Optional[int] = None
     ) -> Dict[str, float]:
         """
         Train the model using standard centralized training.
@@ -89,10 +103,23 @@ class CentralizedTrainer(BaseTrainer):
             resume: Whether to try resuming from checkpoint
             save_every: Save checkpoint every N epochs
             use_wandb: Whether to log to W&B
+            early_stopping_patience: Override patience (None uses config value, 0 disables)
         
         Returns:
             Final test metrics
         """
+        # Override early stopping if specified
+        if early_stopping_patience is not None:
+            if early_stopping_patience > 0:
+                self.early_stopping = EarlyStopping(
+                    patience=early_stopping_patience,
+                    min_delta=0.001,
+                    mode='max',
+                    verbose=True
+                )
+            else:
+                self.early_stopping = None
+        
         # Try to resume
         if resume:
             self.try_resume(self.optimizer, self.scheduler)
@@ -100,6 +127,8 @@ class CentralizedTrainer(BaseTrainer):
         self.logger.info(f"Starting centralized training for {self.epochs} epochs")
         self.logger.info(f"Config: LR={self.lr}, Momentum={self.momentum}, "
                         f"Weight Decay={self.weight_decay}, Scheduler={self.scheduler_type}")
+        if self.early_stopping:
+            self.logger.info(f"Early stopping enabled with patience={self.early_stopping.patience}")
         
         start_epoch = self.current_epoch
         
@@ -147,6 +176,13 @@ class CentralizedTrainer(BaseTrainer):
             if val_metrics['accuracy'] > self.best_val_accuracy:
                 self.best_val_accuracy = val_metrics['accuracy']
                 self.logger.info(f"New best validation accuracy: {self.best_val_accuracy:.4f}")
+            
+            # Check early stopping
+            if self.early_stopping is not None:
+                if self.early_stopping(val_metrics['accuracy'], epoch):
+                    self.logger.info(f"Early stopping triggered at epoch {epoch}!")
+                    self.logger.info(f"Best validation accuracy was {self.early_stopping.best_score:.4f} at epoch {self.early_stopping.best_epoch}")
+                    break
         
         # Final evaluation
         self.logger.info("Training complete. Evaluating on test set...")

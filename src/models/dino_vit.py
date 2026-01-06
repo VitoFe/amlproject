@@ -23,21 +23,26 @@ class DinoViTClassifier(nn.Module):
         self,
         num_classes: int = 100,
         freeze_backbone: bool = False,
-        hidden_dim: int = 384  # ViT-S/16 embedding dimension
+        hidden_dim: int = 384,  # ViT-S/16 embedding dimension
+        dropout: float = 0.1,   # Dropout for regularization
+        freeze_layers: int = 0   # Number of transformer blocks to freeze (0-12)
     ):
         """
         Initialize DINO ViT classifier.
         
         Args:
             num_classes: Number of output classes
-            freeze_backbone: If True, freeze backbone weights (linear probe)
+            freeze_backbone: If True, freeze entire backbone (linear probe)
             hidden_dim: Hidden dimension of ViT (384 for ViT-S)
+            dropout: Dropout probability for classifier head
+            freeze_layers: Number of early transformer blocks to freeze (0 = none, 12 = all)
         """
         super().__init__()
         
         self.hidden_dim = hidden_dim
         self.num_classes = num_classes
         self.freeze_backbone = freeze_backbone
+        self.dropout_rate = dropout
         
         # Load DINO ViT-S/16 backbone
         self.backbone = torch.hub.load(
@@ -46,7 +51,8 @@ class DinoViTClassifier(nn.Module):
             pretrained=True
         )
         
-        # Classification head
+        # Classification head with dropout for regularization
+        self.dropout = nn.Dropout(p=dropout)
         self.classifier = nn.Linear(hidden_dim, num_classes)
         
         # Initialize classifier
@@ -56,11 +62,40 @@ class DinoViTClassifier(nn.Module):
         # Optionally freeze backbone
         if freeze_backbone:
             self._freeze_backbone()
+        elif freeze_layers > 0:
+            self._freeze_early_layers(freeze_layers)
     
     def _freeze_backbone(self):
-        """Freeze backbone parameters for linear probing."""
+        """Freeze entire backbone for linear probing."""
         for param in self.backbone.parameters():
             param.requires_grad = False
+    
+    def _freeze_early_layers(self, num_layers: int):
+        """
+        Freeze early transformer blocks while keeping later ones trainable.
+        
+        This helps prevent overfitting by limiting the number of trainable parameters.
+        
+        Args:
+            num_layers: Number of early blocks to freeze (1-12)
+        """
+        # Freeze patch embedding and positional embedding
+        if hasattr(self.backbone, 'patch_embed'):
+            for param in self.backbone.patch_embed.parameters():
+                param.requires_grad = False
+        
+        # Freeze cls token and pos embed
+        if hasattr(self.backbone, 'cls_token'):
+            self.backbone.cls_token.requires_grad = False
+        if hasattr(self.backbone, 'pos_embed'):
+            self.backbone.pos_embed.requires_grad = False
+        
+        # Freeze specified number of transformer blocks
+        if hasattr(self.backbone, 'blocks'):
+            for i, block in enumerate(self.backbone.blocks):
+                if i < num_layers:
+                    for param in block.parameters():
+                        param.requires_grad = False
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -76,7 +111,8 @@ class DinoViTClassifier(nn.Module):
         # DINO returns the [CLS] token embedding
         features = self.backbone(x)
         
-        # Classify
+        # Apply dropout and classify
+        features = self.dropout(features)
         logits = self.classifier(features)
         
         return logits
@@ -122,6 +158,8 @@ class DinoViTClassifier(nn.Module):
 def create_dino_vit(
     num_classes: int = 100,
     freeze_backbone: bool = False,
+    dropout: float = 0.1,
+    freeze_layers: int = 0,
     device: str = 'cuda'
 ) -> DinoViTClassifier:
     """
@@ -129,7 +167,9 @@ def create_dino_vit(
     
     Args:
         num_classes: Number of output classes
-        freeze_backbone: Whether to freeze backbone
+        freeze_backbone: Whether to freeze entire backbone
+        dropout: Dropout probability for classifier
+        freeze_layers: Number of early transformer blocks to freeze (0-12)
         device: Device to place model on
     
     Returns:
@@ -137,7 +177,9 @@ def create_dino_vit(
     """
     model = DinoViTClassifier(
         num_classes=num_classes,
-        freeze_backbone=freeze_backbone
+        freeze_backbone=freeze_backbone,
+        dropout=dropout,
+        freeze_layers=freeze_layers
     )
     
     return model.to(device)

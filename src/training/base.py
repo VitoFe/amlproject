@@ -60,8 +60,9 @@ class BaseTrainer(ABC):
         self.device = device
         self.experiment_name = experiment_name
         
-        # Initialize criterion
-        self.criterion = nn.CrossEntropyLoss()
+        # Initialize criterion with optional label smoothing for regularization
+        label_smoothing = config.get('label_smoothing', 0.1)
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
         
         # Initialize logger
         self.logger = get_logger(experiment_name)
