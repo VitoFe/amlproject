@@ -196,7 +196,8 @@ class FederatedSparseTrainer(FederatedTrainer):
         resume: bool = True,
         save_every: int = 50,
         use_wandb: bool = False,
-        calibrate_masks: bool = True
+        calibrate_masks: bool = True,
+        early_stopping_patience: Optional[int] = None
     ) -> Dict[str, float]:
         """
         Train using Federated Sparse Fine-tuning.
@@ -209,6 +210,7 @@ class FederatedSparseTrainer(FederatedTrainer):
             save_every: Save checkpoint every N rounds
             use_wandb: Whether to log to W&B
             calibrate_masks: Whether to calibrate masks before training
+            early_stopping_patience: Override patience (None uses config, 0 disables)
         
         Returns:
             Final test metrics
@@ -221,7 +223,8 @@ class FederatedSparseTrainer(FederatedTrainer):
         return super().train(
             resume=resume,
             save_every=save_every,
-            use_wandb=use_wandb
+            use_wandb=use_wandb,
+            early_stopping_patience=early_stopping_patience
         )
     
     def compare_mask_strategies(

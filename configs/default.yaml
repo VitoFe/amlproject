@@ -1,4 +1,5 @@
 # Federated Learning Configuration
+# Optimized for DINO ViT-S/16 on CIFAR-100
 
 # General settings
 seed: 42
@@ -14,35 +15,37 @@ dataset:
   batch_size: 64
   num_classes: 100
 
-# Model settings
+# Model settings (shared across all training paradigms)
 model:
   name: "dino_vit_small_patch16"
   pretrained: true
-  freeze_backbone: false # Set to true for linear probe
-  dropout: 0.3 # Dropout rate for classifier (0.1-0.5)
-  freeze_layers: 6 # Freeze first 6 of 12 transformer blocks
+  freeze_backbone: false # Set to true for linear probe only
+  dropout: 0.1 # Light dropout for regularization
+  freeze_layers: 0 # Don't freeze any layers by default
 
-# Centralized training settings (with anti-overfitting defaults)
+# Centralized training settings
 centralized:
   epochs: 50
-  learning_rate: 0.0005 # Lower LR helps prevent overfitting
+  learning_rate: 0.001 # Found via hyperparameter search
   momentum: 0.9
-  weight_decay: 0.01 # Increased weight decay for regularization
+  weight_decay: 0.0001
   scheduler: "cosine" # cosine, step, none
   warmup_epochs: 5
   label_smoothing: 0.1 # Reduces overconfident predictions
-  early_stopping_patience: 10 # Stop after 10 epochs without improvement
+  early_stopping_patience: 10
 
-# Federated learning settings
+# Federated learning settings (FedAvg)
+# Paper: McMahan et al., "Communication-Efficient Learning of Deep Networks"
 federated:
-  num_clients: 100 # K
-  participation_rate: 0.1 # C (fraction of clients per round)
-  local_steps: 4 # J (number of local training steps)
-  num_rounds: 500
-  learning_rate: 0.01
+  num_clients: 100 # K - Total number of clients
+  participation_rate: 0.1 # C - Fraction of clients per round
+  local_steps: 4 # J - Number of local SGD steps (as specified in instructions)
+  num_rounds: 500 # Communication rounds
+  learning_rate: 0.001 # Client learning rate (tuned for convergence)
   momentum: 0.9
   weight_decay: 0.0001
   label_smoothing: 0.1
+  early_stopping_patience: 100 # More patience for FL (slower convergence)
 
 # Sharding settings
 sharding:
@@ -53,7 +56,7 @@ sharding:
 sparse:
   enabled: false
   sparsity_ratio: 0.9 # Fraction of weights to mask (keep only 10% trainable)
-  calibration_rounds: 5
+  calibration_rounds: 5 # Rounds for Fisher averaging
   mask_strategy: "least_sensitive" # least_sensitive, most_sensitive, lowest_magnitude, highest_magnitude, random
   fisher_samples: 512 # Number of samples for Fisher computation
 
@@ -69,4 +72,9 @@ logging:
 # Experiment settings
 experiment:
   name: "default"
-  num_runs: 3 # Number of independent runs
+  num_runs: 3 # Number of independent runs for statistical significance
+
+# Heterogeneity experiment parameters
+heterogeneity_experiment:
+  nc_values: [1, 5, 10, 50] # Classes per client to test
+  j_values: [4, 8, 16] # Local steps to test

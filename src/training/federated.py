@@ -21,6 +21,7 @@ from .base import BaseTrainer
 from ..data.dataset import get_client_dataloader, get_transforms
 from ..data.sharding import create_client_splits, ShardingStrategy, get_sharding_stats
 from ..utils.logging import log_metrics
+from ..utils.early_stopping import EarlyStopping
 from ..models.dino_vit import get_model_state_dict, set_model_state_dict
 
 
@@ -79,10 +80,11 @@ class FederatedTrainer(BaseTrainer):
         self.participation_rate = config.get('participation_rate', 0.1)  # C
         self.local_steps = config.get('local_steps', 4)  # J
         self.num_rounds = config.get('num_rounds', 500)
-        self.client_lr = config.get('learning_rate', 0.01)
+        self.client_lr = config.get('learning_rate', 0.001)  # Lower LR for pretrained models
         self.momentum = config.get('momentum', 0.9)
         self.weight_decay = config.get('weight_decay', 1e-4)
         self.batch_size = config.get('batch_size', 64)
+        self.early_stopping_patience = config.get('early_stopping_patience', 100)  # More patience for FL
         
         # Sharding configuration
         sharding_config = config.get('sharding', {})
@@ -96,6 +98,16 @@ class FederatedTrainer(BaseTrainer):
         # Number of clients per round
         self.clients_per_round = max(1, int(self.num_clients * self.participation_rate))
         
+        # Setup early stopping
+        self.early_stopping: Optional[EarlyStopping] = None
+        if self.early_stopping_patience > 0:
+            self.early_stopping = EarlyStopping(
+                patience=self.early_stopping_patience,
+                min_delta=0.001,
+                mode='max',
+                verbose=True
+            )
+        
         self.logger.info(f"Federated Learning Setup:")
         self.logger.info(f"  - Total clients (K): {self.num_clients}")
         self.logger.info(f"  - Participation rate (C): {self.participation_rate}")
@@ -104,6 +116,8 @@ class FederatedTrainer(BaseTrainer):
         self.logger.info(f"  - Sharding: {self.sharding_strategy.value}")
         if self.sharding_strategy == ShardingStrategy.NON_IID:
             self.logger.info(f"  - Classes per client (Nc): {self.nc}")
+        if self.early_stopping:
+            self.logger.info(f"  - Early stopping patience: {self.early_stopping_patience} rounds")
     
     def _create_client_splits(self):
         """Create disjoint data splits for clients."""
@@ -240,7 +254,8 @@ class FederatedTrainer(BaseTrainer):
         self,
         resume: bool = True,
         save_every: int = 50,
-        use_wandb: bool = False
+        use_wandb: bool = False,
+        early_stopping_patience: Optional[int] = None
     ) -> Dict[str, float]:
         """
         Train using Federated Averaging.
@@ -249,10 +264,22 @@ class FederatedTrainer(BaseTrainer):
             resume: Whether to try resuming
             save_every: Save checkpoint every N rounds
             use_wandb: Whether to log to W&B
+            early_stopping_patience: Override patience (None uses config, 0 disables)
         
         Returns:
             Final test metrics
         """
+        # Override early stopping if specified
+        if early_stopping_patience is not None:
+            if early_stopping_patience > 0:
+                self.early_stopping = EarlyStopping(
+                    patience=early_stopping_patience,
+                    min_delta=0.001,
+                    mode='max',
+                    verbose=True
+                )
+            else:
+                self.early_stopping = None
         if resume:
             self.try_resume()
         
@@ -314,6 +341,13 @@ class FederatedTrainer(BaseTrainer):
             if val_metrics['accuracy'] > self.best_val_accuracy:
                 self.best_val_accuracy = val_metrics['accuracy']
                 self.logger.info(f"Round {round_idx}: New best val accuracy: {self.best_val_accuracy:.4f}")
+            
+            # Check early stopping
+            if self.early_stopping is not None:
+                if self.early_stopping(val_metrics['accuracy'], round_idx):
+                    self.logger.info(f"Early stopping triggered at round {round_idx}!")
+                    self.logger.info(f"Best validation accuracy was {self.early_stopping.best_score:.4f} at round {self.early_stopping.best_epoch}")
+                    break
         
         # Final evaluation
         self.logger.info("Training complete. Evaluating on test set...")
