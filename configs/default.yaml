@@ -1,0 +1,73 @@
+seed: 42
+device: "cuda" # "cpu"
+num_workers: 2
+pin_memory: true
+
+dataset:
+  name: "cifar100"
+  data_dir: "./data"
+  val_split: 0.1 # 10% of training data for validation
+  batch_size: 64
+  num_classes: 100
+
+model:
+  name: "dino_vit_small_patch16"
+  pretrained: true
+  freeze_backbone: false # true for linear probe only
+  dropout: 0.1
+  freeze_layers: 0
+
+centralized:
+  epochs: 50
+  learning_rate: 0.001
+  momentum: 0.9
+  weight_decay: 0.0001
+  scheduler: "cosine" # cosine, step, none
+  warmup_epochs: 5
+  label_smoothing: 0.1
+  early_stopping_patience: 10
+
+# Federated learning settings (FedAvg)
+# From Paper: McMahan et al., "Communication-Efficient Learning of Deep Networks"
+federated:
+  num_clients: 100 # K - tot number of clients
+  participation_rate: 0.1 # C - fraction of clients per round
+  local_steps: 4 # J - n local SGD steps
+  num_rounds: 500
+  learning_rate: 0.001
+  momentum: 0.9
+  weight_decay: 0.0001
+  label_smoothing: 0.1
+  scheduler: "cosine"
+  min_lr: 0.000001
+  early_stopping_patience: 100
+  # optimizations
+  use_amp: true
+  eval_every: 1
+
+sharding:
+  strategy: "iid" # iid, non_iid
+  nc: 10 # n classes per client for non-iid (1, 5, 10, 50)
+
+sparse:
+  enabled: false
+  sparsity_ratio: 0.9 # fraction of weights to mask (10% trainable)
+  calibration_rounds: 5 # n rounds for Fisher averaging
+  mask_strategy: "least_sensitive" # least_sensitive, most_sensitive, lowest_magnitude, highest_magnitude, random
+  fisher_samples: 512
+
+logging:
+  use_wandb: false
+  wandb_project: "federated-task-arithmetic"
+  log_interval: 10
+  save_interval: 50
+  checkpoint_dir: "./checkpoints"
+  log_dir: "./logs"
+
+experiment:
+  name: "default"
+  num_runs: 3
+
+heterogeneity_experiment:
+  nc_values: [1, 5, 10, 50]
+  j_values: [4, 8, 16]
