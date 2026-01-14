@@ -1,19 +1,10 @@
-# Project Approach: Federated Learning Under the Lens of Task Arithmetic
+# Project Approach
 
-This document explains our implementation approach for each component of the project, providing both high-level intuition for newcomers and technical depth for practitioners.
+Documentation of the implementation approach for each component of the project.
 
 ---
 
-## Legend: Required vs Our Additions
-
-Throughout this document, we use the following markers:
-
-| Marker              | Meaning                                   |
-| ------------------- | ----------------------------------------- |
-| 📋 **REQUIRED**     | Explicitly specified in `instructions.md` |
-| 🚀 **OUR ADDITION** | Enhancement we added beyond requirements  |
-
-### Quick Reference: What Was Required vs What We Added
+## Required vs ADDITIONs
 
 | Component              | Required by Instructions                           | Our Enhancements                               |
 | ---------------------- | -------------------------------------------------- | ---------------------------------------------- |
@@ -50,43 +41,19 @@ Throughout this document, we use the following markers:
 
 ## 1. Architecture Overview
 
-> 📋 **REQUIRED**: Modular, well-organized codebase with version control  
-> 🚀 **OUR ADDITION**: Abstract base classes, DRY design patterns
+> **REQUIRED**: Modular, organized codebase with version control  
+> **ADDITION**: Abstract base classes, DRY design patterns
 
-### High-Level Explanation
+This codebase is organized into modular components that separate concerns: data handling, model definitions, training logic, and utilities. This design allows us to easily switch between centralized, federated, and sparse training modes while reusing common functionality.
 
-Our codebase is organized into modular components that separate concerns: data handling, model definitions, training logic, and utilities. This design allows us to easily switch between centralized, federated, and sparse training modes while reusing common functionality.
-
-### Technical Details
-
-```
-src/
-├── data/           # Dataset loading and client sharding
-│   ├── dataset.py      # CIFAR-100 loading, train/val/test splits
-│   └── sharding.py     # IID and non-IID client partitioning
-├── models/
-│   └── dino_vit.py     # DINO ViT wrapper with classification head
-├── training/
-│   ├── base.py         # Abstract trainer with shared logic
-│   ├── centralized.py  # Standard training loop
-│   ├── federated.py    # FedAvg implementation
-│   └── federated_sparse.py  # Sparse fine-tuning variant
-├── optimizers/
-│   ├── fisher.py       # Fisher Information & mask calibration
-│   └── sparse_sgdm.py  # SGDM with gradient masking
-└── utils/              # Logging, checkpointing, visualization
-```
-
-The `BaseTrainer` abstract class provides common functionality (optimizer creation, evaluation, checkpointing) that is inherited by specialized trainers. This follows the DRY principle—we write the epoch loop once and customize it in subclasses.
+The `BaseTrainer` abstract class provides common functionality (optimizer creation, evaluation, checkpointing) that is inherited by specialized trainers, we write the epoch loop once and customize it in subclasses.
 
 ---
 
-## 2. Model Choice: DINO ViT-S/16
+## 2. Model Choice
 
-> 📋 **REQUIRED**: Use DINO ViT-S/16 pretrained model on CIFAR-100  
-> 🚀 **OUR ADDITION**: Dropout regularization, partial layer freezing, label smoothing
-
-### High-Level Explanation
+> **REQUIRED**: DINO ViT-S/16 pretrained model on CIFAR-100  
+> **ADDITION**: Dropout regularization, partial layer freezing, label smoothing
 
 We use a Vision Transformer (ViT) pretrained with DINO on ImageNet. This model learns strong visual features through self-supervision, meaning it can represent images well without needing labeled data during pretraining. We add a simple classification layer on top and fine-tune it for CIFAR-100.
 
@@ -100,84 +67,57 @@ We add regularization techniques to prevent overfitting on the relatively small 
 
 - **Dropout** (0.1-0.3) before the classification head
 - **Label smoothing** (0.1) in the cross-entropy loss
-- **Layer freezing**: Option to freeze early transformer blocks (e.g., first 6 of 12)
+- **Layer freezing**: To freeze early transformer blocks
 - **Weight decay**: L2 regularization in the optimizer
 
-The `create_dino_vit()` function centralizes model creation with configurable dropout and layer freezing:
-
-```python
-model = create_dino_vit(
-    num_classes=100,
-    freeze_backbone=False,  # Fine-tune all layers
-    dropout=0.1,           # Regularization
-    freeze_layers=6        # Optional: freeze first N transformer blocks
-)
-```
+The `create_dino_vit()` function centralizes model creation with configurable regularization.
 
 ---
 
 ## 3. Centralized Baseline
 
-> 📋 **REQUIRED**: Train centralized baseline with SGDM, cosine annealing, hyperparameter search  
-> 🚀 **OUR ADDITION**: Early stopping, configurable schedulers, hyperparameter search utilities
+> **REQUIRED**: Train centralized baseline with SGDM, cosine annealing, hyperparameter search  
+> **ADDITION**: Early stopping, configurable schedulers, hyperparameter search utilities
 
-### High-Level Explanation
-
-Before experimenting with federated learning, we train a "centralized" model where all data is accessible at once—the standard deep learning setup. This gives us an upper bound on what accuracy we can achieve, since federated learning introduces challenges that typically reduce performance.
+Before experimenting with federated learning, we train a "centralized" model where all data is accessible at once.
 
 ### Technical Details
 
-**Training Configuration:**
+**Configuration:**
 
 - **Optimizer**: SGD with Momentum (0.9), weight decay (1e-4)
 - **Learning Rate**: 0.001 with cosine annealing scheduler
 - **Epochs**: 50 (with early stopping, patience=10)
 - **Batch Size**: 64
 
-**Key Implementation Points:**
+**Implementation:**
 
 1. **Validation Split**: We create a 10% validation split from the training data for hyperparameter tuning, since CIFAR-100 doesn't provide one.
 2. **Early Stopping**: Monitors validation accuracy to prevent overfitting and save compute.
 3. **Checkpointing**: Saves model state periodically and keeps best N checkpoints.
 
-The `CentralizedTrainer` extends `BaseTrainer` and implements a standard epoch-based training loop:
-
-```python
-for epoch in range(epochs):
-    train_loss, train_acc = self._train_epoch(optimizer)
-    val_metrics = self.evaluate_val()
-
-    if scheduler:
-        scheduler.step()
-
-    if early_stopping(val_metrics['accuracy']):
-        break
-```
-
-**Expected Results**: With proper hyperparameter tuning, the centralized baseline should achieve **75-80% test accuracy** on CIFAR-100.
+The `CentralizedTrainer` extends `BaseTrainer` and implements a standard epoch-based training loop.
 
 ---
 
 ## 4. Federated Learning (FedAvg)
 
-> 📋 **REQUIRED**: Implement FedAvg [McMahan et al., 2017] with K=100, C=0.1, J=4, sequential simulation  
-> 🚀 **OUR ADDITION**: Mixed precision (AMP), round-based LR scheduling, sparse evaluation
+> **REQUIRED**: Implement FedAvg [McMahan et al., 2017] with K=100, C=0.1, J=4, sequential simulation  
+> **ADDITION**: Mixed precision (AMP), round-based LR scheduling, sparse evaluation
 
-### High-Level Explanation
+Federated Averaging (FedAvg) is the foundational algorithm for federated learning. Instead of collecting all data centrally, we simulate a scenario where data is distributed across 100 clients. In each round, a subset of clients updates their local models, and the server averages these updates to improve the global model.
 
-Federated Averaging (FedAvg) is the foundational algorithm for federated learning. Instead of collecting all data centrally, we simulate a scenario where data is distributed across 100 clients (e.g., mobile devices). In each round, a subset of clients updates their local models, and the server averages these updates to improve the global model.
-
-The key insight is that this _sequential simulation_ on a single GPU produces mathematically identical results to true parallel training—we just can't run clients simultaneously.
+This sequential simulation on a single GPU produces mathematically identical results to true parallel training.
 
 ### Technical Details
 
 **Algorithm (per communication round):**
 
-1. **Client Selection**: Randomly select `C×K` clients (C=0.1, K=100 → 10 clients per round)
+1. **Client Selection**: Randomly select `C×K` clients (C=0.1, K=100, so 10 clients per round)
 2. **Local Training**: Each selected client performs `J` local SGD steps (J=4 default)
 3. **Aggregation**: Server computes weighted average of client models
 
-**Key Parameters:**
+**Parameters:**
 | Parameter | Symbol | Default | Meaning |
 |-----------|--------|---------|---------|
 | Total clients | K | 100 | Simulates 100 edge devices |
@@ -185,7 +125,7 @@ The key insight is that this _sequential simulation_ on a single GPU produces ma
 | Local steps | J | 4 | Steps before sending update back |
 | Communication rounds | T | 500 | Total server-client exchanges |
 
-**Implementation Highlights:**
+**Implementation:**
 
 ```python
 def _client_update(self, client_id, global_state):
@@ -214,21 +154,17 @@ def _aggregate(self, client_states, client_weights):
 - **LR Scheduling**: Cosine annealing adapted for round-based training
 - **Sparse Evaluation**: Evaluate every N rounds instead of every round
 
-**Expected Results**: FedAvg with IID sharding should achieve **60-70% accuracy**, somewhat lower than centralized due to the distributed nature.
-
 ---
 
 ## 5. Data Sharding Strategies
 
-> 📋 **REQUIRED**: IID sharding + Non-IID sharding with Nc={1,5,10,50}  
-> 🚀 **OUR ADDITION**: Sharding statistics logging, flexible Nc configuration
+> **REQUIRED**: IID sharding + Non-IID sharding with Nc={1,5,10,50}  
+> **ADDITION**: Sharding statistics logging, flexible Nc configuration
 
-### High-Level Explanation
+In reality, data on different devices isn't uniformly distributed. We simulate this "statistical heterogeneity" by controlling how we split data among clients:
 
-In reality, data on different devices isn't uniformly distributed—a phone in Italy might have different image types than one in Japan. We simulate this "statistical heterogeneity" by controlling how we split data among clients:
-
-- **IID (Independent & Identically Distributed)**: Each client gets a random mix of all 100 classes—the ideal, easy case.
-- **Non-IID**: Each client only sees `Nc` classes. With Nc=1, each client only has images from one class—an extreme case that makes training very challenging.
+- **IID (Independent & Identically Distributed)**: Each client gets a random mix of all 100 classes the ideal, easy case.
+- **Non-IID**: Each client only sees `Nc` classes. With Nc=1, each client only has images from one class an extreme case that makes training very challenging.
 
 ### Technical Details
 
@@ -272,14 +208,10 @@ The key phenomenon is **client drift**: when clients train on very different dat
 
 ## 6. Task Arithmetic & Sparse Fine-tuning
 
-> 📋 **REQUIRED**: Fisher Information for sensitivity, SparseSGDM optimizer, multi-round calibration  
-> 🚀 **OUR ADDITION**: Configurable Fisher samples, mask merging utilities
+> **REQUIRED**: Fisher Information for sensitivity, SparseSGDM optimizer, multi-round calibration  
+> **ADDITION**: Configurable Fisher samples, mask merging utilities
 
-### High-Level Explanation
-
-The core idea from recent research (Iurada et al., 2025) is that not all parameters are equally important for learning new tasks. Some parameters are "low-sensitivity"—changing them doesn't affect the model's existing knowledge much. By only updating these parameters, we can learn new information while minimizing interference between different clients.
-
-Think of it like editing a document: instead of rewriting everything, we identify which paragraphs can be safely modified without changing the document's core meaning.
+The core idea from recent research (Iurada et al., 2025) is that not all parameters are equally important for learning new tasks. Some parameters are "low-sensitivity" changing them doesn't affect the model's existing knowledge much. By only updating these parameters, we can learn new information while minimizing interference between different clients.
 
 ### Technical Details
 
@@ -348,10 +280,8 @@ class SparseSGDM(Optimizer):
 
 ## 7. Extension: Mask Strategy Comparison
 
-> 📋 **REQUIRED (Guided Extension)**: Compare least-sensitive with: most-sensitive, lowest-magnitude, highest-magnitude, random  
-> 🚀 **OUR ADDITION**: Unified strategy enum, automated comparison experiments
-
-### High-Level Explanation
+> **REQUIRED (Guided Extension)**: Compare least-sensitive with: most-sensitive, lowest-magnitude, highest-magnitude, random  
+> **ADDITION**: Unified strategy enum, automated comparison experiments
 
 The original paper uses "least-sensitive" parameters, but what if we tried other strategies? Maybe the most important parameters should be updated, or we should use simpler heuristics like parameter magnitude. This extension compares five different masking strategies to understand which works best for federated learning.
 
@@ -396,12 +326,10 @@ Based on the literature, we expect:
 
 ## 8. Engineering Decisions
 
-> 📋 **REQUIRED**: Checkpointing (Colab recovery), experiment logging, reproducibility  
-> 🚀 **OUR ADDITION**: W&B integration, auto-pruning checkpoints, visualization tools, early stopping
+> **REQUIRED**: Checkpointing (Colab recovery), experiment logging, reproducibility  
+> **ADDITION**: W&B integration, auto-pruning checkpoints, visualization tools, early stopping
 
-### High-Level Explanation
-
-Good engineering is crucial for ML research. We implemented robust checkpointing (to survive Colab disconnections), comprehensive logging, and visualization tools. The code follows best practices like separation of concerns, type hints, and minimal code duplication.
+We implemented robust checkpointing (to survive Colab disconnections), comprehensive logging, and visualization tools. The code follows best practices like separation of concerns, type hints, and minimal code duplication.
 
 ### Technical Details
 
@@ -432,40 +360,3 @@ torch.save(checkpoint, 'checkpoint_epoch50.pt')
 
 - All random seeds are set via `set_seed(42)`
 - Covers: Python, NumPy, PyTorch, CUDA
-
-**Performance Optimizations Applied:**
-| Optimization | Benefit | Where Used |
-|--------------|---------|------------|
-| Mixed Precision (AMP) | 2x faster training | FederatedTrainer |
-| LR Scheduling | Better convergence | All trainers |
-| Early Stopping | Saves compute | All trainers |
-| Sparse Evaluation | 5-10x fewer evals | FederatedTrainer |
-| Pin Memory | Faster data loading | All DataLoaders |
-
----
-
-## Summary: How Components Connect
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    EXPERIMENT FLOW                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  1. Load CIFAR-100 → create train/val/test splits           │
-│                         │                                    │
-│  2. Create DINO ViT ────┼─── Centralized Baseline           │
-│                         │         │                          │
-│  3. Shard data ─────────┼─── FedAvg (IID)                   │
-│     (IID / non-IID)     │         │                          │
-│                         │    FedAvg (non-IID, vary Nc)       │
-│                         │         │                          │
-│  4. Calibrate masks ────┼─── Sparse FedAvg                  │
-│     (Fisher Information)│         │                          │
-│                         │    Compare mask strategies         │
-│                         │         │                          │
-│  5. Evaluate & Compare ─┴─────────┘                          │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-Each experiment builds on the previous one, with shared infrastructure (checkpointing, logging, model creation) enabling consistent and reproducible results across all configurations.

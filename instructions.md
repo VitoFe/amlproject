@@ -1,91 +1,56 @@
 Project: Federated Learning Under the Lens of Task Arithmetic
 
 Overview
-Federated Learning (FL) (McMahan et al., 2017) is a paradigm to learn from decentralized
-data in which a central server orchestrates an iterative two-step training process that
-involves 1) local training, potentially on a large number of clients, each with its own private
-data, and 2) the aggregation of these updated local models on the server into a single,
-shared global model. This process is repeated over several communication rounds. While
-the inherent privacy-preserving nature of FL makes it well-suited for decentralized
-applications with restricted data sharing, it also introduces significant challenges.  
+Federated Learning (FL) (McMahan et al., 2017) is a paradigm to learn from decentralized data in which a central server orchestrates an iterative two-step training process that involves 1) local training, potentially on a large number of clients, each with its own private data, and 2) the aggregation of these updated local models on the server into a single, shared global model. This process is repeated over several communication rounds. While the inherent privacy-preserving nature of FL makes it well-suited for decentralized applications with restricted data sharing, it also introduces significant challenges.  
 ​
-Model editing refers to the task of modifying, correcting, or improving the functionality of a
-pre-trained model without retraining it from scratch. A promising direction is Task Arithmetic
-(Ilharco et al., 2023) which involves merging together multiple fine-tuned versions of a base
-model, each adapted to specific user needs or tasks, to build a single model that integrates
-this knowledge. This approach naturally aligns with the goals of Federated Learning: both
-paradigms aim to synthesize distributed expertise into a coherent, performant model while
-minimizing direct access to raw data. However, a key risk in model merging is interference,
-i.e., the conflict between updates from different sources that degrade overall model quality.
+Model editing refers to the task of modifying, correcting, or improving the functionality of a pre-trained model without retraining it from scratch. A promising direction is Task Arithmetic (Ilharco et al., 2023) which involves merging together multiple fine-tuned versions of a base model, each adapted to specific user needs or tasks, to build a single model that integrates this knowledge. This approach naturally aligns with the goals of Federated Learning: both paradigms aim to synthesize distributed expertise into a coherent, performant model while minimizing direct access to raw data. However, a key risk in model merging is interference, i.e., the conflict between updates from different sources that degrade overall model quality.
 
 Recent advances have highlighted the emergence of shared low-sensitivity parameters
-(iurada et al., 2025) subsets of model weights that, when fine-tuned, can incorporate new
-information with minimal interference. This is attributed to the approximate linearity of neural
-functions with respect to weight updates in these sub-spaces, which allows for near-additive
-composition of fine-tuned models.
+(iurada et al., 2025) subsets of model weights that, when fine-tuned, can incorporate new information with minimal interference. This is attributed to the approximate linearity of neural functions with respect to weight updates in these sub-spaces, which allows for near-additive composition of fine-tuned models.
 
-The project’s main goals are to understand the challenges of FL, specifically when applied
-on pre-trained vision models and to explore whether leveraging some emergent properties of
-pre-training can help mitigate such challenges.
+The project’s main goals are to understand the challenges of FL, specifically when applied on pre-trained vision models and to explore whether leveraging some emergent properties of pre-training can help mitigate such challenges.
 
 Project Specifications
 
 1. Goals
-   The goal is to become familiar with the standard federated scenario and its main challenges
-   related to data statistical heterogeneity, systems heterogeneity and their effect on training.
-   You will study the main approaches in literature and finally focus on an open problem and
-   suggest solutions.
+   The goal is to become familiar with the standard federated scenario and its main challenges related to data statistical heterogeneity, systems heterogeneity and their effect on training.
+
+   You will study the main approaches in literature and finally focus on an open problem and suggest solutions.
+
    Become familiar with the literature and the state-of-the-art
-   Before starting the project, you should take some time to study and get familiar with the
-   federated scenario, its algorithms and challenges. Here some references:
-   ●​ Understand the FL setting [2, 3, 10]
-   ●​ Outlook on issues and state of the art [7,8,9]
-   ●​ Statistical and system heterogeneity: algorithms [1,4,5] and architectural
-   investigations [12, 13, 14]
-   ●​ Real-world applications [11]
+   Before starting the project, you should take some time to study and get familiar with the federated scenario, its algorithms and challenges. Here some references:
+
+   - Understand the FL setting [2,3,10]
+   - Outlook on issues and state of the art [7,8,9]
+   - Statistical and system heterogeneity: algorithms [1,4,5] and architectural investigations [12, 13, 14]
+   - Real-world applications [11]
+
 2. Codebase, Resources & Dataset:
-   To start your experimentation you will first need to implement your codebase. The first step
-   will be to implement a centralized training baseline, to compare the performance of
-   distributed techniques to the standard centralized procedure. Next, extend your code to
-   simulate the parallel training of FL (e.g. see [10]) by sequentially training your clients: this
-   does not change the results of the algorithms, but it is necessary to work with one GPU only.
-   For the experiments, we require you to use the pretrained model architecture DINO ViT-S/16
-   (https://github.com/facebookresearch/dino), on the CIFAR-100 dataset, which can be
-   downloaded from torchvision. As per the computational resources, you will use the free
-   version of Google Colab.
-   Tips and tricks
-   Good code is initially harder and slower to develop, but it soon repays the initial effort:
-   remind that the code is taken into account as part of the project, and it must be delivered as
-   an attachment to your report. Please adhere to the best coding practices: take into care
-   modularization, avoid deep nesting, mind about readability and lastly use a version control
-   system.
-   As specific to deep learning, it is in your interest to correctly implement checkpointing and
-   experiment logging. Colab will likely interrupt your experiments, so you must be ready to
-   recover an interrupted run from a certain point in training when resources will be granted
-   again. Not taking this into account will most likely result in (much) more time for carrying out
-   the experiments.
+   To start your experimentation you will first need to implement your codebase. The first step will be to implement a centralized training baseline, to compare the performance of distributed techniques to the standard centralized procedure.
+
+   Next, extend your code to simulate the parallel training of FL (e.g. see [10]) by sequentially training your clients: this does not change the results of the algorithms, but it is necessary to work with one GPU only.
+
+   For the experiments, we require you to use the pretrained model architecture DINO ViT-S/16 (https://github.com/facebookresearch/dino), on the CIFAR-100 dataset, which can be downloaded from torchvision. As per the computational resources, you will use the free version of Google Colab.
+
+   **Tips and tricks**
+
+   Good code is initially harder and slower to develop, but it soon repays the initial effort: remind that the code is taken into account as part of the project, and it must be delivered as an attachment to your report. Please adhere to the best coding practices: take into care modularization, avoid deep nesting, mind about readability and lastly use a version control system.
+
+   As specific to deep learning, it is in your interest to correctly implement checkpointing and experiment logging. Colab will likely interrupt your experiments, so you must be ready to recover an interrupted run from a certain point in training when resources will be granted again. Not taking this into account will most likely result in (much) more time for carrying out the experiments.
 
 3. Base Experimentation
-   Preliminaries
-   As you may have noticed, the CIFAR-100 dataset you downloaded from torchvision has not
-   a validation split. Your first step will be to split the original dataset such to have a validation
-   set, to be used for hyperparameter tuning. In FL clients have their own disjoint set of training
-   samples, so to simulate that setting you will need to split the training set into K disjoint
-   subsets. In particular, to simulate statistical heterogeneity, for CIFAR-100 your code should
-   implement the following splittings:
-   ●​ i.i.d. sharding: each of K clients is given an approximately equal number of training
-   samples uniformly distributed over the class labels
-   ●​ non-i.i.d. sharding: each client is given an approximately equal number of training
-   samples, belonging to Nc classes, where Nc is an hyperparameter you will use to
-   control the severity of the induced dataset heterogeneity. For example, if Nc=1, then
-   each client has samples belonging to one class only.
-   Gentle starting
+
+   **Preliminaries**
+
+   As you may have noticed, the CIFAR-100 dataset you downloaded from torchvision has not a validation split. Your first step will be to split the original dataset such to have a validation set, to be used for hyperparameter tuning. In FL clients have their own disjoint set of training samples, so to simulate that setting you will need to split the training set into K disjoint subsets. In particular, to simulate statistical heterogeneity, for CIFAR-100 your code should implement the following splittings:
+
+   - i.i.d. sharding: each of K clients is given an approximately equal number of training samples uniformly distributed over the class labels
+   - non-i.i.d. sharding: each client is given an approximately equal number of training samples, belonging to Nc classes, where Nc is an hyperparameter you will use to control the severity of the induced dataset heterogeneity. For example, if Nc=1, then each client has samples belonging to one class only.
+
+   **Gentle starting**
    Centralized baseline  
-   Train your models on CIFAR-100 using the SGDM optimizer, taking care of searching for the
-   best hyparameters. As a learning rate scheduler, we suggest you use the cosine annealing
-   scheduler. Report the plots of test loss and test accuracy. How many epochs do you need?
-   Which learning scheduler performs the best? Explore various solutions and compare your
-   results
+    Train your models on CIFAR-100 using the SGDM optimizer, taking care of searching for the best hyparameters. As a learning rate scheduler, we suggest you use the cosine annealing scheduler. Report the plots of test loss and test accuracy. How many epochs do you need?
+   Which learning scheduler performs the best? Explore various solutions and compare your results
 
 Task Arithmetic​
 
@@ -100,26 +65,18 @@ Task Arithmetic​
    https://pytorch.org/docs/stable/generated/torch.optim.SGD.html  
    More info can be found in [15] (HINT: see pseudo-code in the Appendix and github repo).
    The first FL baseline
-   Implement the algorithm described in [10], fix K=100, C=0.1, adopt an iid sharding of the
-   training set and fix J=4 the number of local steps. Run FedAvg on CIFAR-100 for a proper
-   number of rounds (up to you to define, based on convergence and time/compute budget).
+   Implement the algorithm described in [10], fix K=100, C=0.1, adopt an iid sharding of the training set and fix J=4 the number of local steps. Run FedAvg on CIFAR-100 for a proper number of rounds (up to you to define, based on convergence and time/compute budget).
    Simulate heterogeneous distributions
    Fix K=100 and C=0.1, and simulate several non-iid shardings of the training set of
-   CIFAR-100, by fixing the number of different labels clients have (Nc={1,5,10,50}). Then test
-   the performance of FedAvg [10], comparing with the iid sharding, varying the number of local
-   steps J={4,8,16}. When increasing the number of local steps, remember to scale accordingly
-   the number of training rounds.​
+   CIFAR-100, by fixing the number of different labels clients have (Nc={1,5,10,50}). Then test the performance of FedAvg [10], comparing with the iid sharding, varying the number of local steps J={4,8,16}. When increasing the number of local steps, remember to scale accordingly the number of training rounds.​
    Is there a noticeable difference in performance? Motivate your findings.
    Task Arithmetic techniques in FL  
-   Sparse fine-tuning consists in updating only a selected subset of parameters by eg. masking
-   the gradients during GD. This is typically done by:
+   Sparse fine-tuning consists in updating only a selected subset of parameters by eg. masking the gradients during GD. This is typically done by:
    (step 0.: Either train or obtain in closed-form eg. Ridge, a classifier locally which will be then
    kept frozen at all times after this step)
-   1.​ Calibrate a gradient mask, i.e., decide which weights will be updated (entry in the
-   mask == 1) and which not (entry in the mask == 0). ​
+   1.​ Calibrate a gradient mask, i.e., decide which weights will be updated (entry in the mask == 1) and which not (entry in the mask == 0). ​
    Calibrate the gradient mask by identifying in multiple rounds (see why in [15], Sec.
-   4.2.) the least-sensitive parameters (i.e. the weights with a sensitivity score lower
-   than some user-defined threshold).
+   4.2.) the least-sensitive parameters (i.e. the weights with a sensitivity score lower than some user-defined threshold).
    2.​ Perform fine-tuning by masking gradients with the calibrated masks. Use your
    implementation of SparseSGDM.
 
