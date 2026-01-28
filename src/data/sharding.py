@@ -1,6 +1,6 @@
 import numpy as np
 from enum import Enum
-from typing import Dict
+from typing import Dict, Any
 from torch.utils.data import Dataset
 
 
@@ -158,7 +158,7 @@ def _non_iid_sharding(
 
 def get_sharding_stats(
     client_splits: Dict[int, np.ndarray], labels: np.ndarray
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     num_clients = len(client_splits)
     samples_per_client = [len(split) for split in client_splits.values()]
 
