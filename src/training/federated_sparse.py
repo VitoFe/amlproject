@@ -63,7 +63,7 @@ class FederatedSparseTrainer(FederatedTrainer):
 
         self.gradient_masks: Optional[Dict[str, torch.Tensor]] = None
 
-        self.logger.info(f"Sparse Fine-tuning Setup:")
+        self.logger.info("Sparse Fine-tuning Setup:")
         self.logger.info(f"  - Sparsity ratio: {self.sparsity_ratio}")
         self.logger.info(f"  - Calibration rounds: {self.calibration_rounds}")
         self.logger.info(f"  - Mask strategy: {self.mask_strategy.value}")
@@ -92,7 +92,7 @@ class FederatedSparseTrainer(FederatedTrainer):
         )
 
         sparsity_stats = get_mask_sparsity(self.gradient_masks)
-        self.logger.info(f"Mask calibration complete:")
+        self.logger.info("Mask calibration complete:")
         self.logger.info(
             f"  - Global sparsity: {sparsity_stats['global_sparsity']:.4f}"
         )

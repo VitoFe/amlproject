@@ -138,7 +138,7 @@ class FederatedTrainer(BaseTrainer):
                 verbose=True,
             )
 
-        self.logger.info(f"Federated Learning Setup:")
+        self.logger.info("Federated Learning Setup:")
         self.logger.info(f"  - Total clients (K): {self.num_clients}")
         self.logger.info(f"  - Participation rate (C): {self.participation_rate}")
         self.logger.info(f"  - Clients per round: {self.clients_per_round}")
@@ -177,7 +177,7 @@ class FederatedTrainer(BaseTrainer):
 
         # Log sharding stats
         stats = get_sharding_stats(self.client_splits, labels)
-        self.logger.info(f"Sharding statistics:")
+        self.logger.info("Sharding statistics:")
         self.logger.info(
             f"  - Samples per client: {stats['samples_per_client_mean']:.1f} ± {stats['samples_per_client_std']:.1f}"
         )
