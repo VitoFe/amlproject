@@ -164,6 +164,7 @@ def _create_masks_from_scores(
         # MOST_SENSITIVE or HIGHEST_MAGNITUDE
         # keep highest-scoring parameters (unmask them)
         # mask the lowest-scoring onesarsity_ratio)
+        threshold = np.quantile(all_scores_np, sparsity_ratio)
         keep_below = False
     elif strategy == MaskStrategy.RANDOM:
          return _calibrate_random_mask(model, sparsity_ratio)
