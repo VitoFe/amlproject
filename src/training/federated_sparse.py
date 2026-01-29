@@ -106,25 +106,35 @@ class FederatedSparseTrainer(FederatedTrainer):
     def _client_update(
         self, client_id: int, global_state: Dict[str, torch.Tensor]
     ) -> Dict[str, torch.Tensor]:
-        if self.gradient_masks is None:
-            raise RuntimeError(
-                "Gradient masks not calibrated.. call calibrate_masks() first!"
-            )
+        """
+        Perform local training for a single client.
 
-        # Fast: load only trainable params
+        Args:
+            client_id: Client identifier
+            global_state: Global model TRAINABLE state dict (not full state!)
+
+        Returns:
+            Updated local model trainable state dict
+        """
+        # Load global trainable params only
         _set_trainable_state(self.model, global_state)
         self.model.train()
 
-        optimizer = create_sparse_optimizer(
-            self.model,
+        # Create client optimizer with current LR
+        optimizer = torch.optim.SGD(
+            [p for p in self.model.parameters() if p.requires_grad],
             lr=self.client_lr,
             momentum=self.momentum,
             weight_decay=self.weight_decay,
-            gradient_masks=self.gradient_masks,
         )
 
+        # Get client data
         client_loader = self._get_client_dataloader(client_id)
-
+        
+        epoch_loss = 0.0
+        correct = 0
+        total = 0
+        # Perform local steps with optional mixed precision
         step = 0
         while step < self.local_steps:
             for inputs, targets in client_loader:
@@ -138,13 +148,12 @@ class FederatedSparseTrainer(FederatedTrainer):
 
                 optimizer.zero_grad(set_to_none=True)
 
-                # Use AMP if enabled (inherited from parent)
+                # Use AMP if enabled
                 if self.use_amp:
                     with autocast():
                         outputs = self.model(inputs)
                         loss = self.criterion(outputs, targets)
                     self.scaler.scale(loss).backward()
-                    # SparseSGDM handles masking in step(), AMP scaler works normally
                     self.scaler.step(optimizer)
                     self.scaler.update()
                 else:
@@ -152,11 +161,21 @@ class FederatedSparseTrainer(FederatedTrainer):
                     loss = self.criterion(outputs, targets)
                     loss.backward()
                     optimizer.step()
+                    
+                epoch_loss += loss.item() * targets.size(0)
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
+                correct += predicted.eq(targets).sum().item()
 
                 step += 1
+                
+        avg_loss = epoch_loss / total if total > 0 else 0.0
+        avg_acc = correct / total if total > 0 else 0.0
+        metrics = {'loss': avg_loss, 'accuracy': avg_acc}
+        
+        # Return only trainable params (much smaller than full state!)
+        return _get_trainable_state(self.model), metrics
 
-        # Fast: return only trainable params
-        return _get_trainable_state(self.model)
 
     def train(
         self,

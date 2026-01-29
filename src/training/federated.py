@@ -138,7 +138,7 @@ class FederatedTrainer(BaseTrainer):
                 verbose=True,
             )
 
-        self.logger.info("Federated Learning Setup:")
+        self.logger.info(f"Federated Learning Setup:")
         self.logger.info(f"  - Total clients (K): {self.num_clients}")
         self.logger.info(f"  - Participation rate (C): {self.participation_rate}")
         self.logger.info(f"  - Clients per round: {self.clients_per_round}")
@@ -177,7 +177,7 @@ class FederatedTrainer(BaseTrainer):
 
         # Log sharding stats
         stats = get_sharding_stats(self.client_splits, labels)
-        self.logger.info("Sharding statistics:")
+        self.logger.info(f"Sharding statistics:")
         self.logger.info(
             f"  - Samples per client: {stats['samples_per_client_mean']:.1f} ± {stats['samples_per_client_std']:.1f}"
         )
@@ -259,7 +259,10 @@ class FederatedTrainer(BaseTrainer):
 
         # Get client data
         client_loader = self._get_client_dataloader(client_id)
-
+        
+        epoch_loss = 0.0
+        correct = 0
+        total = 0
         # Perform local steps with optional mixed precision
         step = 0
         while step < self.local_steps:
@@ -287,11 +290,20 @@ class FederatedTrainer(BaseTrainer):
                     loss = self.criterion(outputs, targets)
                     loss.backward()
                     optimizer.step()
+                    
+                epoch_loss += loss.item() * targets.size(0)
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
+                correct += predicted.eq(targets).sum().item()
 
                 step += 1
-
+        avg_loss = epoch_loss / total if total > 0 else 0.0
+        avg_acc = correct / total if total > 0 else 0.0
+        
+        metrics = {'loss': avg_loss, 'accuracy': avg_acc}
+        
         # Return only trainable params (much smaller than full state!)
-        return _get_trainable_state(self.model)
+        return _get_trainable_state(self.model), metrics
 
     def _aggregate(
         self,
@@ -386,20 +398,31 @@ class FederatedTrainer(BaseTrainer):
             # Perform client updates
             client_states = []
             client_weights = []
-
+            client_metrics = [] 
+            
             for client_id in tqdm(
                 selected_clients, desc=f"Round {round_idx}", leave=False
             ):
-                local_state = self._client_update(client_id, global_state)
+                local_state, local_metric = self._client_update(client_id, global_state)
+                weights_per_client = len(self.client_splits[client_id])
                 client_states.append(local_state)
                 client_weights.append(len(self.client_splits[client_id]))
-
+                client_metrics.append(local_metric) 
+                
             # Aggregate updates
             global_state = self._aggregate(client_states, client_weights)
 
             # Update global model with trainable params only
             _set_trainable_state(self.model, global_state)
-
+            
+            #  Aggregating Training Metrics 
+            total_samples = sum(client_weights)
+            train_loss = sum([m['loss'] * w for m, w in zip(client_metrics, client_weights)]) / total_samples
+            train_acc = sum([m['accuracy'] * w for m, w in zip(client_metrics, client_weights)]) / total_samples
+            
+            if 'train_loss' not in self.metrics_history: self.metrics_history['train_loss'] = []
+            if 'train_accuracy' not in self.metrics_history: self.metrics_history['train_accuracy'] = []
+            
             # Evaluate only every N rounds for speed (always on first and last)
             should_eval = (
                 (round_idx % self.eval_every == 0)
@@ -409,8 +432,9 @@ class FederatedTrainer(BaseTrainer):
 
             if should_eval:
                 val_metrics = self.evaluate_val()
-
                 # Store metrics
+                self.metrics_history['train_loss'].append(train_loss)
+                self.metrics_history['train_accuracy'].append(train_acc)
                 self.metrics_history["val_loss"].append(val_metrics["loss"])
                 self.metrics_history["val_accuracy"].append(val_metrics["accuracy"])
                 self.metrics_history["learning_rate"].append(self.client_lr)
@@ -420,6 +444,8 @@ class FederatedTrainer(BaseTrainer):
                     log_metrics(
                         self.logger,
                         {
+                            'train_loss': train_loss,
+                            'train_acc': train_acc,
                             "val_loss": val_metrics["loss"],
                             "val_acc": val_metrics["accuracy"],
                             "lr": self.client_lr,
