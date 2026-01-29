@@ -80,9 +80,11 @@ Computed by:
 3. Square and accumulate gradients
 4. Average over samples
 
-High Fisher values indicate parameters that significantly affect the loss → high sensitivity.
+High Fisher values indicate parameters that significantly affect the loss -> high sensitivity.
 
 ## Quick Start
+
+Make sure you have uv installed before proceeding ( `pip install uv` )
 
 ### Installation
 
@@ -131,38 +133,9 @@ uv run python scripts/train_federated_sparse.py --compare-strategies
 uv run python scripts/run_all_experiments.py --full --num-runs 3
 ```
 
-## Experiments
-
-### Base Experimentation
-
-| Experiment         | Description                           | Parameters                           |
-| ------------------ | ------------------------------------- | ------------------------------------ |
-| Centralized        | Standard training baseline            | 50 epochs, LR=0.001, cosine schedule |
-| FedAvg IID         | Federated with IID sharding           | K=100, C=0.1, J=4                    |
-| FedAvg Non-IID     | Federated with non-IID (Nc=1,5,10,50) | Same as above                        |
-| Local Steps        | Effect of J on convergence            | J=4,8,16 with adjusted rounds        |
-| Sparse Fine-tuning | Task arithmetic in FL                 | Sparsity=0.9, least_sensitive        |
-
-### Extension: Mask Strategy Comparison
-
-Compares different strategies for selecting which parameters to update:
-
-1. **Least Sensitive** (default): Updates parameters with low Fisher Information, minimizing interference during aggregation
-2. **Most Sensitive**: Updates high-sensitivity parameters
-3. **Lowest Magnitude**: Updates parameters with small absolute values
-4. **Highest Magnitude**: Updates parameters with large absolute values
-5. **Random**: Baseline with random parameter selection
-
 ## Configuration
 
 Edit `configs/default.yaml` or pass command-line arguments.
-
-## References
-
-1. McMahan et al., "Communication-Efficient Learning of Deep Networks from Decentralized Data", AISTATS 2017
-2. Iurada et al., "Efficient Model Editing with Task-Localized Sparse Fine-tuning", ICLR 2025
-3. Ilharco et al., "Editing Models with Task Arithmetic", ICLR 2023
-4. Caron et al., "Emerging Properties in Self-Supervised Vision Transformers (DINO)", ICCV 2021
 
 ## License
 
